@@ -33,12 +33,18 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function loadEverything() {
     const supabase = supabaseBrowser();
 
     const { data: subData, error: subErr } = await supabase.rpc('get_all_submissions');
-    if (!subErr) setSubmissions((subData as Submission[]) ?? []);
+    if (subErr) {
+      setLoadError(subErr.message);
+    } else {
+      setLoadError(null);
+      setSubmissions((subData as Submission[]) ?? []);
+    }
 
     const { data: modData } = await supabase
       .from('modules')
@@ -104,6 +110,15 @@ export default function AdminPage() {
 
       <h2 style={{ fontSize: 18, marginTop: 32 }}>Pending Submissions ({pending.length})</h2>
       {loading && <p>Loading...</p>}
+      {loadError && (
+        <div className="card locked">
+          <strong>Couldn't load submissions:</strong> {loadError}
+          <p style={{ fontSize: 13, marginTop: 6 }}>
+            This usually means the <code>get_all_submissions()</code> function hasn't been run in the
+            Supabase SQL Editor yet.
+          </p>
+        </div>
+      )}
 
       {pending.map((s) => (
         <div key={s.id} className="card">
