@@ -25,15 +25,20 @@ export default function NavBar() {
 
   return (
     <div className="navbar">
-      <div className="links">
-        <strong>CSCI 150</strong>
-        <a href="/modules">Modules</a>
-        {isAdminEmail(email) && <a href="/admin">Admin</a>}
+      <div className="row">
+        <div className="brand">
+          <span className="dot" />
+          CSCI 150
+        </div>
+        <div className="links">
+          <a className="navlink" href="/modules">modules/</a>
+          {isAdminEmail(email) && <a className="navlink" href="/admin">admin/</a>}
+        </div>
       </div>
-      <div>
+      <div className="row">
         <span className="email">{email}</span>
-        <button className="btn" onClick={signOut} style={{ background: '#eef0f4', color: '#1c2029' }}>
-          Sign out
+        <button className="btn ghost" onClick={signOut}>
+          sign out
         </button>
       </div>
     </div>

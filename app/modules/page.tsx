@@ -37,34 +37,44 @@ export default function Modules() {
 
   return (
     <div className="container">
-      <h1>Modules</h1>
-      {email && <p style={{ color: '#6b7280' }}>Signed in as {email}</p>}
+      <div className="eyebrow">your syllabus</div>
+      <h1 style={{ marginTop: 0 }}>Modules</h1>
+      {email && (
+        <p style={{ color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+          {email}
+        </p>
+      )}
 
       {loading && <p>Loading modules...</p>}
 
-      {modules.map((m) => (
-        <div key={m.slug} className={`card ${m.unlocked ? '' : 'locked'}`}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              {m.sort_order}. {m.title}
-              {m.unlocked ? (
-                <span className="badge done">unlocked</span>
-              ) : (
-                <span className="badge locked">locked</span>
-              )}
+      <div className="module-rail" style={{ marginTop: 24 }}>
+        {modules.map((m) => (
+          <div key={m.slug} className={`module-row ${m.unlocked ? 'unlocked' : ''}`}>
+            <div className="module-num">{m.sort_order}</div>
+            <div className={`card ${m.unlocked ? '' : 'locked'}`} style={{ marginBottom: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  {m.title}
+                  {m.unlocked ? (
+                    <span className="badge done"># unlocked</span>
+                  ) : (
+                    <span className="badge locked"># locked</span>
+                  )}
+                </div>
+                {m.unlocked ? (
+                  <Link href={`/modules/${m.slug}`}>
+                    <button className="btn">Open</button>
+                  </Link>
+                ) : (
+                  <button className="btn" disabled>
+                    Locked
+                  </button>
+                )}
+              </div>
             </div>
-            {m.unlocked ? (
-              <Link href={`/modules/${m.slug}`}>
-                <button className="btn">Open</button>
-              </Link>
-            ) : (
-              <button className="btn" disabled>
-                Locked
-              </button>
-            )}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
       {!loading && modules.length === 0 && (
         <p>No modules found. Make sure supabase_schema.sql has been run.</p>

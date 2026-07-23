@@ -3,13 +3,6 @@
 import { useEffect, useState } from 'react';
 import { supabaseBrowser, isAdminEmail } from '../../lib/supabaseClient';
 
-// IMPORTANT: the isAdminEmail check below is a convenience redirect,
-// not real security -- a student could disable JavaScript and skip it.
-// The actual protection is the Postgres Row Level Security policy in
-// supabase_schema.sql, which only lets the ADMIN_EMAIL account read
-// every row of `submissions`, and the get_all_submissions() function,
-// which only lets that same account see student emails.
-
 type Submission = {
   id: string;
   student_id: string;
@@ -90,25 +83,35 @@ export default function AdminPage() {
 
   return (
     <div className="container">
-      <h1>Instructor Dashboard</h1>
+      <div className="eyebrow">instructor</div>
+      <h1 style={{ marginTop: 0 }}>Dashboard</h1>
 
-      <h2 style={{ fontSize: 18, marginTop: 24 }}>Module Access</h2>
-      <p style={{ color: '#6b7280', fontSize: 14 }}>
-        Unlock a module once you've taught that week's material. This applies to the whole class at once.
+      <h2 style={{ fontSize: 17, marginTop: 28, fontFamily: 'var(--font-display)' }}>Module access</h2>
+      <p style={{ color: 'var(--ink-soft)', fontSize: 13.5, marginTop: -6 }}>
+        Unlock a module once you've taught that week's material. Applies to the whole class at once.
       </p>
       {modules.map((m) => (
-        <div key={m.slug} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div
+          key={m.slug}
+          className="card"
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           <div>
-            {m.sort_order}. {m.title}
-            {m.unlocked ? <span className="badge done">unlocked</span> : <span className="badge locked">locked</span>}
+            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--ink-soft)', marginRight: 8 }}>
+              {String(m.sort_order).padStart(2, '0')}
+            </span>
+            {m.title}
+            {m.unlocked ? <span className="badge done"># unlocked</span> : <span className="badge locked"># locked</span>}
           </div>
-          <button className="btn" onClick={() => toggleModule(m.slug, m.unlocked)}>
+          <button className="btn ghost" onClick={() => toggleModule(m.slug, m.unlocked)}>
             {m.unlocked ? 'Lock' : 'Unlock'}
           </button>
         </div>
       ))}
 
-      <h2 style={{ fontSize: 18, marginTop: 32 }}>Pending Submissions ({pending.length})</h2>
+      <h2 style={{ fontSize: 17, marginTop: 32, fontFamily: 'var(--font-display)' }}>
+        Pending ({pending.length})
+      </h2>
       {loading && <p>Loading...</p>}
       {loadError && (
         <div className="card locked">
@@ -123,21 +126,39 @@ export default function AdminPage() {
       {pending.map((s) => (
         <div key={s.id} className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <strong>{s.module_slug}</strong>
+            <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 14 }}>{s.module_slug}</strong>
             <span className="badge">{s.status}</span>
           </div>
-          <p style={{ fontSize: 12, color: '#6b7280' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>
             {s.student_email} &middot; {new Date(s.created_at).toLocaleString()}
           </p>
-          <pre className="editor">{s.code}</pre>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div className="term-window">
+            <div className="term-header">
+              <span className="term-dot red" />
+              <span className="term-dot yellow" />
+              <span className="term-dot green" />
+            </div>
+            <div className="term-body">
+              <pre
+                style={{
+                  margin: 0,
+                  color: 'var(--term-ink)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 13,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {s.code}
+              </pre>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <button className="btn" disabled={busyId === s.id} onClick={() => setStatus(s.id, 'approved')}>
               Approve
             </button>
             <button
-              className="btn"
+              className="btn danger"
               disabled={busyId === s.id}
-              style={{ background: '#b23b30' }}
               onClick={() => setStatus(s.id, 'needs_revision')}
             >
               Needs revision
@@ -146,20 +167,24 @@ export default function AdminPage() {
         </div>
       ))}
 
-      {!loading && pending.length === 0 && <p>No pending submissions.</p>}
+      {!loading && !loadError && pending.length === 0 && (
+        <p style={{ color: 'var(--ink-soft)' }}>No pending submissions.</p>
+      )}
 
       {reviewed.length > 0 && (
         <>
-          <h2 style={{ fontSize: 18, marginTop: 32 }}>Reviewed ({reviewed.length})</h2>
+          <h2 style={{ fontSize: 17, marginTop: 32, fontFamily: 'var(--font-display)' }}>
+            Reviewed ({reviewed.length})
+          </h2>
           {reviewed.map((s) => (
-            <div key={s.id} className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong>{s.module_slug}</strong>
-                <span className={`badge ${s.status === 'approved' ? 'done' : 'locked'}`}>{s.status}</span>
+            <div key={s.id} className="card" style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div>
+                <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>{s.module_slug}</strong>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>
+                  {s.student_email}
+                </div>
               </div>
-              <p style={{ fontSize: 12, color: '#6b7280' }}>
-                {s.student_email} &middot; {new Date(s.created_at).toLocaleString()}
-              </p>
+              <span className={`badge ${s.status === 'approved' ? 'done' : 'danger'}`}>{s.status}</span>
             </div>
           ))}
         </>

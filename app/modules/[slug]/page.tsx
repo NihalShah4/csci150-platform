@@ -16,7 +16,7 @@ print("Hello, " + name + "! Welcome to CSCI 150.")
 
 export default function ModulePage({ params }: { params: { slug: string } }) {
   const [code, setCode] = useState(STARTER_CODE);
-  const [output, setOutput] = useState('Click "Run" to see output here.');
+  const [output, setOutput] = useState('');
   const [running, setRunning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
 
   async function runCode() {
     setRunning(true);
-    setOutput('Running...');
+    setOutput('');
     try {
       const pyodide = pyodideRef.current;
       if (!pyodide) {
@@ -58,7 +58,6 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
       }
       let captured = '';
       pyodide.setStdout({ batched: (s: string) => (captured += s + '\n') });
-      // input() has no meaning in a headless runner; stub it so code doesn't hang.
       pyodide.globals.set('input', (prompt?: string) => {
         captured += (prompt ?? '') + '(sample input)\n';
         return 'sample input';
@@ -88,15 +87,17 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
       status: 'pending',
     });
     setSubmitting(false);
-    setSubmitMsg(error ? error.message : 'Submitted! Your instructor will review it.');
+    setSubmitMsg(error ? error.message : 'Submitted. Your instructor will review it.');
   }
+
+  const filename = params.slug.replace(/-/g, '_') + '.py';
 
   return (
     <div className="container">
-      <a href="/modules" style={{ color: '#6b7280', fontSize: 13 }}>
-        &larr; Back to modules
+      <a href="/modules" className="navlink" style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+        &larr; modules/
       </a>
-      <h1 style={{ textTransform: 'capitalize' }}>{params.slug.replace(/-/g, ' ')}</h1>
+      <h1 style={{ textTransform: 'capitalize', marginTop: 8 }}>{params.slug.replace(/-/g, ' ')}</h1>
 
       {!checked && <p>Checking access...</p>}
 
@@ -107,25 +108,63 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
       )}
 
       {checked && allowed && (
-        <div className="card">
-          <p>Write your code below, run it to check the output, then submit when ready.</p>
-          <textarea
-            className="editor"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            spellCheck={false}
-          />
-          <div style={{ display: 'flex', gap: 10, margin: '10px 0' }}>
+        <>
+          <p style={{ color: 'var(--ink-soft)' }}>
+            Write your code below, run it to check the output, then submit when ready.
+          </p>
+
+          <div className="term-window">
+            <div className="term-header">
+              <span className="term-dot red" />
+              <span className="term-dot yellow" />
+              <span className="term-dot green" />
+              <span className="term-tab">{filename}</span>
+            </div>
+            <div className="term-body">
+              <textarea
+                className="editor"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                spellCheck={false}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, margin: '14px 0' }}>
             <button className="btn" onClick={runCode} disabled={running}>
               {running ? 'Running...' : 'Run'}
             </button>
-            <button className="btn" onClick={submitWork} disabled={submitting} style={{ background: '#1f9e52' }}>
+            <button
+              className="btn"
+              onClick={submitWork}
+              disabled={submitting}
+              style={{ background: 'var(--accent-dark)' }}
+            >
               {submitting ? 'Submitting...' : 'Submit'}
             </button>
           </div>
-          <div className="output">{output}</div>
-          {submitMsg && <p style={{ color: '#b8860b' }}>{submitMsg}</p>}
-        </div>
+
+          <div className="term-window">
+            <div className="term-header">
+              <span className="term-dot red" />
+              <span className="term-dot yellow" />
+              <span className="term-dot green" />
+              <span className="term-tab">output</span>
+            </div>
+            <div className="term-body">
+              <div className="output">
+                {output || 'Click "Run" to see output here.'}
+                {output && <span className="cursor" />}
+              </div>
+            </div>
+          </div>
+
+          {submitMsg && (
+            <p style={{ color: 'var(--warn)', marginTop: 12, fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+              {submitMsg}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
