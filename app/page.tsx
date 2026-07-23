@@ -42,20 +42,20 @@ export default function Home() {
   return (
     <div className="container" style={{ maxWidth: 420 }}>
       <h1>CSCI 150</h1>
-      <p style={{ color: '#9aa1b2' }}>Intro to Computer Science and Programming (Python)</p>
+      <p style={{ color: '#6b7280' }}>Intro to Computer Science and Programming (Python)</p>
 
       <div className="card">
         <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
           <button
             className="btn"
-            style={{ background: mode === 'signin' ? '#4f7cff' : '#262b38' }}
+            style={{ background: mode === 'signin' ? '#3b5bfd' : '#eef0f4', color: mode === 'signin' ? 'white' : '#1c2029' }}
             onClick={() => setMode('signin')}
           >
             Sign in
           </button>
           <button
             className="btn"
-            style={{ background: mode === 'signup' ? '#4f7cff' : '#262b38' }}
+            style={{ background: mode === 'signup' ? '#3b5bfd' : '#eef0f4', color: mode === 'signup' ? 'white' : '#1c2029' }}
             onClick={() => setMode('signup')}
           >
             Register
@@ -83,7 +83,7 @@ export default function Home() {
           </button>
         </form>
 
-        {message && <p style={{ color: '#e8b84f', marginTop: 12 }}>{message}</p>}
+        {message && <p style={{ color: '#b8860b', marginTop: 12 }}>{message}</p>}
       </div>
     </div>
   );

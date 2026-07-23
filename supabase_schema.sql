@@ -80,3 +80,35 @@ create policy "students read own progress"
 create policy "only instructor manages progress"
   on progress for insert
   with check (auth.jwt() ->> 'email' = 'nshah3@drew.edu');
+
+-- Lets the instructor account see each submission alongside the
+-- student's email. This function runs with elevated privileges
+-- (security definer) but the very first line refuses to run for
+-- anyone except the instructor -- so it can't be used to leak
+-- emails to students, only to the one account it checks for.
+create or replace function get_all_submissions()
+returns table (
+  id uuid,
+  student_id uuid,
+  student_email text,
+  module_slug text,
+  code text,
+  status text,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (auth.jwt() ->> 'email') is distinct from 'nshah3@drew.edu' then
+    raise exception 'not authorized';
+  end if;
+
+  return query
+    select s.id, s.student_id, u.email::text, s.module_slug, s.code, s.status, s.created_at
+    from submissions s
+    join auth.users u on u.id = s.student_id
+    order by s.created_at desc;
+end;
+$$;

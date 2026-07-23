@@ -20,7 +20,22 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
   const [running, setRunning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [allowed, setAllowed] = useState(false);
   const pyodideRef = useRef<any>(null);
+
+  useEffect(() => {
+    const supabase = supabaseBrowser();
+    supabase
+      .from('modules')
+      .select('unlocked')
+      .eq('slug', params.slug)
+      .single()
+      .then(({ data }) => {
+        setAllowed(!!data?.unlocked);
+        setChecked(true);
+      });
+  }, [params.slug]);
 
   useEffect(() => {
     const script = document.createElement('script');
@@ -78,30 +93,40 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
 
   return (
     <div className="container">
-      <a href="/modules" style={{ color: '#9aa1b2', fontSize: 13 }}>
+      <a href="/modules" style={{ color: '#6b7280', fontSize: 13 }}>
         &larr; Back to modules
       </a>
       <h1 style={{ textTransform: 'capitalize' }}>{params.slug.replace(/-/g, ' ')}</h1>
 
-      <div className="card">
-        <p>Write your code below, run it to check the output, then submit when ready.</p>
-        <textarea
-          className="editor"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          spellCheck={false}
-        />
-        <div style={{ display: 'flex', gap: 10, margin: '10px 0' }}>
-          <button className="btn" onClick={runCode} disabled={running}>
-            {running ? 'Running...' : 'Run'}
-          </button>
-          <button className="btn" onClick={submitWork} disabled={submitting} style={{ background: '#2e9e5b' }}>
-            {submitting ? 'Submitting...' : 'Submit'}
-          </button>
+      {!checked && <p>Checking access...</p>}
+
+      {checked && !allowed && (
+        <div className="card locked">
+          <p>This module is locked. Your instructor hasn't unlocked it yet.</p>
         </div>
-        <div className="output">{output}</div>
-        {submitMsg && <p style={{ color: '#e8b84f' }}>{submitMsg}</p>}
-      </div>
+      )}
+
+      {checked && allowed && (
+        <div className="card">
+          <p>Write your code below, run it to check the output, then submit when ready.</p>
+          <textarea
+            className="editor"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            spellCheck={false}
+          />
+          <div style={{ display: 'flex', gap: 10, margin: '10px 0' }}>
+            <button className="btn" onClick={runCode} disabled={running}>
+              {running ? 'Running...' : 'Run'}
+            </button>
+            <button className="btn" onClick={submitWork} disabled={submitting} style={{ background: '#1f9e52' }}>
+              {submitting ? 'Submitting...' : 'Submit'}
+            </button>
+          </div>
+          <div className="output">{output}</div>
+          {submitMsg && <p style={{ color: '#b8860b' }}>{submitMsg}</p>}
+        </div>
+      )}
     </div>
   );
 }
