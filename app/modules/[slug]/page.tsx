@@ -22,19 +22,40 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [allowed, setAllowed] = useState(false);
+  const [locked, setLocked] = useState(false);
   const pyodideRef = useRef<any>(null);
 
   useEffect(() => {
     const supabase = supabaseBrowser();
-    supabase
-      .from('modules')
-      .select('unlocked')
-      .eq('slug', params.slug)
-      .single()
-      .then(({ data }) => {
-        setAllowed(!!data?.unlocked);
-        setChecked(true);
-      });
+
+    async function load() {
+      const { data: moduleRow } = await supabase
+        .from('modules')
+        .select('unlocked')
+        .eq('slug', params.slug)
+        .single();
+      setAllowed(!!moduleRow?.unlocked);
+
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData.user) {
+        const { data: latest } = await supabase
+          .from('submissions')
+          .select('code, status')
+          .eq('student_id', userData.user.id)
+          .eq('module_slug', params.slug)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latest?.status === 'approved') {
+          setLocked(true);
+          setCode(latest.code);
+        }
+      }
+
+      setChecked(true);
+    }
+    load();
   }, [params.slug]);
 
   useEffect(() => {
@@ -87,7 +108,12 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
       status: 'pending',
     });
     setSubmitting(false);
-    setSubmitMsg(error ? error.message : 'Submitted. Your instructor will review it.');
+    if (error) {
+      setSubmitMsg(error.message.includes('already been approved') ? error.message : error.message);
+      if (error.message.includes('already been approved')) setLocked(true);
+    } else {
+      setSubmitMsg('Submitted. Your instructor will review it.');
+    }
   }
 
   const filename = params.slug.replace(/-/g, '_') + '.py';
@@ -109,9 +135,21 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
 
       {checked && allowed && (
         <>
-          <p style={{ color: 'var(--ink-soft)' }}>
-            Write your code below, run it to check the output, then submit when ready.
-          </p>
+          {locked ? (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <span className="status-chip complete">
+                <span className="status-dot" /> approved
+              </span>
+              <p style={{ color: 'var(--ink-soft)', marginTop: 10 }}>
+                This one's locked in. Your instructor already approved it, so it can't be changed
+                or resubmitted. Nice work.
+              </p>
+            </div>
+          ) : (
+            <p style={{ color: 'var(--ink-soft)' }}>
+              Write your code below, run it to check the output, then submit when ready.
+            </p>
+          )}
 
           <div className="term-window">
             <div className="term-header">
@@ -126,6 +164,8 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 spellCheck={false}
+                readOnly={locked}
+                style={locked ? { opacity: 0.75, cursor: 'default' } : undefined}
               />
             </div>
           </div>
@@ -134,14 +174,16 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
             <button className="btn" onClick={runCode} disabled={running}>
               {running ? 'Running...' : 'Run'}
             </button>
-            <button
-              className="btn"
-              onClick={submitWork}
-              disabled={submitting}
-              style={{ background: 'var(--accent-dark)' }}
-            >
-              {submitting ? 'Submitting...' : 'Submit'}
-            </button>
+            {!locked && (
+              <button
+                className="btn"
+                onClick={submitWork}
+                disabled={submitting}
+                style={{ background: 'var(--accent-dark)' }}
+              >
+                {submitting ? 'Submitting...' : 'Submit'}
+              </button>
+            )}
           </div>
 
           <div className="term-window">

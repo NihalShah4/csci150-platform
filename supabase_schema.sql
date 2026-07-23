@@ -58,6 +58,34 @@ create policy "instructor updates all submissions"
   on submissions for update
   using (auth.jwt() ->> 'email' = 'nshah3@drew.edu');
 
+-- Once a student's submission for a module has been approved, they can
+-- never insert another one for that module -- even if they edit the
+-- frontend, log in from a different device, or call the API directly.
+-- This is enforced here, at the database level, not in the app code.
+create or replace function prevent_resubmission_after_approval()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if exists (
+    select 1 from submissions
+    where student_id = new.student_id
+      and module_slug = new.module_slug
+      and status = 'approved'
+  ) then
+    raise exception 'This module has already been approved and cannot be resubmitted.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_prevent_resubmission on submissions;
+create trigger trg_prevent_resubmission
+  before insert on submissions
+  for each row execute function prevent_resubmission_after_approval();
+
 -- You (the instructor) will read everything using the Supabase
 -- dashboard or a service-role key from a secure admin-only route,
 -- not through the public anon key used by students.
