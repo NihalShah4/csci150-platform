@@ -102,6 +102,16 @@ a { color: var(--accent-dark); }
 .container { max-width: 980px; margin: 0 auto; padding: 40px 24px; }
 
 /* ---------- Nav ---------- */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url('/app-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 .navbar {
   display: flex;
   align-items: center;

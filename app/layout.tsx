@@ -1,5 +1,6 @@
 import './globals.css';
 import NavBar from '../components/NavBar';
+import AppBackground from '../components/AppBackground';
 
 export const metadata = {
   title: 'Pynt — learn Python by writing it',
@@ -10,6 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        <AppBackground />
         <NavBar />
         {children}
       </body>
