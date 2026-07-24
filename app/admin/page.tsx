@@ -23,6 +23,9 @@ type ModuleRow = {
 export default function AdminPage() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [modules, setModules] = useState<ModuleRow[]>([]);
+  const [roster, setRoster] = useState<string[]>([]);
+  const [newEmail, setNewEmail] = useState('');
+  const [rosterMsg, setRosterMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -45,7 +48,34 @@ export default function AdminPage() {
       .order('sort_order', { ascending: true });
     setModules((modData as ModuleRow[]) ?? []);
 
+    const { data: rosterData } = await supabase
+      .from('allowed_students')
+      .select('email')
+      .order('added_at', { ascending: true });
+    setRoster((rosterData ?? []).map((r: any) => r.email));
+
     setLoading(false);
+  }
+
+  async function addToRoster(e: React.FormEvent) {
+    e.preventDefault();
+    setRosterMsg(null);
+    const email = newEmail.trim().toLowerCase();
+    if (!email) return;
+    const supabase = supabaseBrowser();
+    const { error } = await supabase.from('allowed_students').insert({ email });
+    if (error) {
+      setRosterMsg(error.message);
+    } else {
+      setNewEmail('');
+      await loadEverything();
+    }
+  }
+
+  async function removeFromRoster(email: string) {
+    const supabase = supabaseBrowser();
+    await supabase.from('allowed_students').delete().eq('email', email);
+    await loadEverything();
   }
 
   useEffect(() => {
@@ -85,6 +115,47 @@ export default function AdminPage() {
     <div className="container">
       <div className="eyebrow">instructor</div>
       <h1 style={{ marginTop: 0 }}>Dashboard</h1>
+
+      <h2 style={{ fontSize: 17, marginTop: 28, fontFamily: 'var(--font-display)' }}>
+        Class roster ({roster.length})
+      </h2>
+      <p style={{ color: 'var(--ink-soft)', fontSize: 13.5, marginTop: -6 }}>
+        Only these emails can register. Add every enrolled student before class starts.
+      </p>
+      <div className="card">
+        <form onSubmit={addToRoster} style={{ display: 'flex', gap: 8, marginBottom: roster.length ? 16 : 0 }}>
+          <input
+            type="email"
+            placeholder="student@drew.edu"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            style={{ marginBottom: 0 }}
+          />
+          <button className="btn" type="submit" style={{ whiteSpace: 'nowrap' }}>
+            Add student
+          </button>
+        </form>
+        {rosterMsg && <p style={{ color: 'var(--danger)', fontSize: 13 }}>{rosterMsg}</p>}
+        {roster.map((email) => (
+          <div
+            key={email}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 0',
+              borderTop: '1px solid var(--border)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 13,
+            }}
+          >
+            {email}
+            <button className="btn ghost" onClick={() => removeFromRoster(email)} style={{ padding: '4px 10px', fontSize: 12 }}>
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
 
       <h2 style={{ fontSize: 17, marginTop: 28, fontFamily: 'var(--font-display)' }}>Module access</h2>
       <p style={{ color: 'var(--ink-soft)', fontSize: 13.5, marginTop: -6 }}>

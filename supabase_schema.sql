@@ -86,6 +86,48 @@ create trigger trg_prevent_resubmission
   before insert on submissions
   for each row execute function prevent_resubmission_after_approval();
 
+-- Class roster: only emails in this table can ever create an account.
+-- You manage this list from the admin dashboard (or directly here).
+create table if not exists allowed_students (
+  email text primary key,
+  added_at timestamptz default now()
+);
+
+alter table allowed_students enable row level security;
+
+create policy "instructor manages roster"
+  on allowed_students for all
+  using (auth.jwt() ->> 'email' = 'nshah3@drew.edu')
+  with check (auth.jwt() ->> 'email' = 'nshah3@drew.edu');
+
+-- Your own account must be seeded here too, or even you couldn't sign up.
+insert into allowed_students (email) values ('nshah3@drew.edu')
+  on conflict (email) do nothing;
+
+-- This runs before Supabase Auth creates ANY new account. If the email
+-- isn't on the roster, account creation fails immediately -- this is
+-- the actual gate, not just something the app checks afterward.
+create or replace function enforce_student_roster()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from allowed_students where lower(email) = lower(new.email)
+  ) then
+    raise exception 'This email is not on the class roster. Contact your instructor if you believe this is a mistake.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_enforce_roster on auth.users;
+create trigger trg_enforce_roster
+  before insert on auth.users
+  for each row execute function enforce_student_roster();
+
 -- You (the instructor) will read everything using the Supabase
 -- dashboard or a service-role key from a secure admin-only route,
 -- not through the public anon key used by students.
