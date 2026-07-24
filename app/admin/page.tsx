@@ -8,6 +8,8 @@ type Submission = {
   student_id: string;
   student_email: string;
   module_slug: string;
+  exercise_id: string | null;
+  exercise_title: string | null;
   code: string;
   status: string;
   run_count: number | null;
@@ -116,13 +118,13 @@ export default function AdminPage() {
 
   const duplicateGroups = new Map<string, string[]>();
   submissions.forEach((s) => {
-    const key = s.module_slug + '::' + s.code.trim().replace(/\s+/g, ' ');
+    const key = (s.exercise_id ?? s.module_slug) + '::' + s.code.trim().replace(/\s+/g, ' ');
     const emails = duplicateGroups.get(key) ?? [];
     if (!emails.includes(s.student_email)) emails.push(s.student_email);
     duplicateGroups.set(key, emails);
   });
   function duplicatesFor(s: Submission): string[] {
-    const key = s.module_slug + '::' + s.code.trim().replace(/\s+/g, ' ');
+    const key = (s.exercise_id ?? s.module_slug) + '::' + s.code.trim().replace(/\s+/g, ' ');
     const emails = duplicateGroups.get(key) ?? [];
     return emails.filter((e) => e !== s.student_email);
   }
@@ -215,7 +217,10 @@ export default function AdminPage() {
         return (
           <div key={s.id} className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 14 }}>{s.module_slug}</strong>
+              <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 14 }}>
+                {s.module_slug}
+                {s.exercise_title ? ` — ${s.exercise_title}` : ''}
+              </strong>
               <span className="badge">{s.status}</span>
             </div>
             <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>

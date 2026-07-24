@@ -131,6 +131,118 @@ create trigger trg_enforce_roster
   before insert on auth.users
   for each row execute function enforce_student_roster();
 
+-- Exercises: each module can contain several independently graded
+-- problems instead of one single code box. A module only counts as
+-- "complete" for a student once every exercise inside it is approved.
+create table if not exists exercises (
+  id uuid primary key default gen_random_uuid(),
+  module_slug text references modules(slug) not null,
+  sort_order int not null,
+  title text not null,
+  prompt text not null,
+  starter_code text not null,
+  unique (module_slug, sort_order)
+);
+
+alter table exercises enable row level security;
+
+create policy "anyone signed in can read exercises"
+  on exercises for select
+  using (auth.role() = 'authenticated');
+
+create policy "only instructor manages exercises"
+  on exercises for all
+  using (auth.jwt() ->> 'email' = 'nshah3@drew.edu')
+  with check (auth.jwt() ->> 'email' = 'nshah3@drew.edu');
+
+-- Submissions now attach to a specific exercise, not just a module.
+alter table submissions add column if not exists exercise_id uuid references exercises(id);
+
+-- Update the approval-lock trigger to work per-exercise instead of
+-- per-module, since a student can now have several exercises within
+-- one module in different states.
+create or replace function prevent_resubmission_after_approval()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.exercise_id is not null and exists (
+    select 1 from submissions
+    where student_id = new.student_id
+      and exercise_id = new.exercise_id
+      and status = 'approved'
+  ) then
+    raise exception 'This exercise has already been approved and cannot be resubmitted.';
+  end if;
+  return new;
+end;
+$$;
+
+-- Update the admin RPC to include exercise info.
+drop function if exists get_all_submissions();
+create or replace function get_all_submissions()
+returns table (
+  id uuid,
+  student_id uuid,
+  student_email text,
+  module_slug text,
+  exercise_id uuid,
+  exercise_title text,
+  code text,
+  status text,
+  run_count integer,
+  seconds_to_submit integer,
+  paste_attempted boolean,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (auth.jwt() ->> 'email') is distinct from 'nshah3@drew.edu' then
+    raise exception 'not authorized';
+  end if;
+
+  return query
+    select s.id, s.student_id, u.email::text, s.module_slug, s.exercise_id, e.title,
+           s.code, s.status, s.run_count, s.seconds_to_submit, s.paste_attempted, s.created_at
+    from submissions s
+    join auth.users u on u.id = s.student_id
+    left join exercises e on e.id = s.exercise_id
+    order by s.created_at desc;
+end;
+$$;
+
+-- Seed Module 1's exercises: original problems written in the spirit
+-- of a first chapter on computers and programming (print statements
+-- only -- no variables or input yet, those come in Module 2).
+insert into exercises (module_slug, sort_order, title, prompt, starter_code) values
+(
+  'intro-computers-programming', 1, 'Say hello',
+  'Write a program that uses one print() statement to display the message: Hello, world! I just wrote my first program.',
+  '# Use print() to display the message below\n'
+),
+(
+  'intro-computers-programming', 2, 'Introduce yourself',
+  'Using several separate print() statements (one per line), display your name, your major, and one fact about yourself. That is three print() calls total, each on its own line.',
+  '# Use three separate print() statements\n'
+),
+(
+  'intro-computers-programming', 3, 'Draw a box',
+  'Using only print() statements, draw a small box made of asterisks (*) that is 4 rows tall and 4 characters wide, like this:\n****\n*  *\n*  *\n****',
+  '# Use print() statements to draw the box exactly as shown\n'
+),
+(
+  'intro-computers-programming', 4, 'Spot the bug',
+  'The program below is supposed to print two lines: "Loading Pynt..." and "Ready to code.", but it has a mistake in it. Fix it so both lines print correctly without any errors.',
+  'print("Loading Pynt...")\nprin("Ready to code.")\n'
+)
+on conflict (module_slug, sort_order) do nothing;
+
+
 -- You (the instructor) will read everything using the Supabase
 -- dashboard or a service-role key from a secure admin-only route,
 -- not through the public anon key used by students.

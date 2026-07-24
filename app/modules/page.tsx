@@ -11,32 +11,16 @@ type ModuleRow = {
   unlocked: boolean;
 };
 
-type StatusMap = Record<string, string>;
-
-function statusChip(status: string | undefined) {
-  if (status === 'approved') {
-    return (
-      <span className="status-chip complete">
-        <span className="status-dot" /> complete
-      </span>
-    );
-  }
-  if (status === 'pending') {
-    return (
-      <span className="status-chip review">
-        <span className="status-dot" /> in review
-      </span>
-    );
-  }
-  if (status === 'needs_revision') {
-    return <span className="status-chip retry">try again</span>;
-  }
-  return null;
-}
+type ModuleStatus = {
+  totalExercises: number;
+  approvedCount: number;
+  hasPending: boolean;
+  hasNeedsRevision: boolean;
+};
 
 export default function Modules() {
   const [modules, setModules] = useState<ModuleRow[]>([]);
-  const [statuses, setStatuses] = useState<StatusMap>({});
+  const [statusByModule, setStatusByModule] = useState<Record<string, ModuleStatus>>({});
   const [email, setEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -55,26 +39,75 @@ export default function Modules() {
         .order('sort_order', { ascending: true });
       setModules((rows as ModuleRow[]) ?? []);
 
+      const { data: exRows } = await supabase.from('exercises').select('id, module_slug');
+      const exerciseModuleMap: Record<string, string> = {};
+      const totalByModule: Record<string, number> = {};
+      (exRows ?? []).forEach((e: any) => {
+        exerciseModuleMap[e.id] = e.module_slug;
+        totalByModule[e.module_slug] = (totalByModule[e.module_slug] ?? 0) + 1;
+      });
+
       const { data: subs } = await supabase
         .from('submissions')
-        .select('module_slug, status, created_at')
+        .select('exercise_id, status, created_at')
         .eq('student_id', data.user.id)
         .order('created_at', { ascending: true });
 
-      const map: StatusMap = {};
+      const latestByExercise: Record<string, string> = {};
       (subs ?? []).forEach((s: any) => {
-        // later rows overwrite earlier ones, so this ends up as "most recent status per module"
-        map[s.module_slug] = s.status;
+        if (s.exercise_id) latestByExercise[s.exercise_id] = s.status;
       });
-      setStatuses(map);
+
+      const result: Record<string, ModuleStatus> = {};
+      Object.entries(exerciseModuleMap).forEach(([exId, slug]) => {
+        if (!result[slug]) {
+          result[slug] = { totalExercises: totalByModule[slug] ?? 0, approvedCount: 0, hasPending: false, hasNeedsRevision: false };
+        }
+        const status = latestByExercise[exId];
+        if (status === 'approved') result[slug].approvedCount += 1;
+        if (status === 'pending') result[slug].hasPending = true;
+        if (status === 'needs_revision') result[slug].hasNeedsRevision = true;
+      });
+      setStatusByModule(result);
 
       setLoading(false);
     });
   }, []);
 
   const unlockedCount = modules.filter((m) => m.unlocked).length;
-  const completeCount = modules.filter((m) => statuses[m.slug] === 'approved').length;
+  const completeCount = modules.filter((m) => {
+    const s = statusByModule[m.slug];
+    return s && s.totalExercises > 0 && s.approvedCount === s.totalExercises;
+  }).length;
   const total = modules.length || 9;
+
+  function statusChip(slug: string) {
+    const s = statusByModule[slug];
+    if (!s || s.totalExercises === 0) return null;
+    if (s.approvedCount === s.totalExercises) {
+      return (
+        <span className="status-chip complete">
+          <span className="status-dot" /> complete
+        </span>
+      );
+    }
+    if (s.hasNeedsRevision) return <span className="status-chip retry">try again</span>;
+    if (s.hasPending) {
+      return (
+        <span className="status-chip review">
+          <span className="status-dot" /> in review
+        </span>
+      );
+    }
+    if (s.approvedCount > 0) {
+      return (
+        <span className="status-chip review">
+          {s.approvedCount}/{s.totalExercises} done
+        </span>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="container">
@@ -117,7 +150,7 @@ export default function Modules() {
                   ) : (
                     <span className="badge locked"># locked</span>
                   )}
-                  {statusChip(statuses[m.slug])}
+                  {statusChip(m.slug)}
                 </div>
                 {m.unlocked ? (
                   <Link href={`/modules/${m.slug}`}>
