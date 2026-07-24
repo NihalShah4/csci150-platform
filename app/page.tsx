@@ -187,7 +187,7 @@ export default function Home() {
     <div>
       <div className="hero" style={{ paddingBottom: 24 }}>
         <div>
-          <div className="eyebrow">CSCI 150 &middot; python</div>
+          <div className="eyebrow">pynt &middot; csci 150 &middot; python</div>
           <h1>Learn to code by actually writing code.</h1>
           <p className="lede">
             Nine modules, real Python running in your browser, and feedback from your instructor

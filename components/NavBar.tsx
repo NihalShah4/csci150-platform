@@ -28,7 +28,7 @@ export default function NavBar() {
       <div className="row">
         <div className="brand">
           <span className="dot" />
-          CSCI 150
+          Pynt
         </div>
         <div className="links">
           <a className="navlink" href="/modules">modules/</a>
