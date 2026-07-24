@@ -192,6 +192,7 @@ returns table (
   exercise_title text,
   code text,
   status text,
+  instructor_notes text,
   run_count integer,
   seconds_to_submit integer,
   paste_attempted boolean,
@@ -208,13 +209,29 @@ begin
 
   return query
     select s.id, s.student_id, u.email::text, s.module_slug, s.exercise_id, e.title,
-           s.code, s.status, s.run_count, s.seconds_to_submit, s.paste_attempted, s.created_at
+           s.code, s.status, s.instructor_notes, s.run_count, s.seconds_to_submit, s.paste_attempted, s.created_at
     from submissions s
     join auth.users u on u.id = s.student_id
     left join exercises e on e.id = s.exercise_id
     order by s.created_at desc;
 end;
 $$;
+
+-- Reference solutions ("answer key"). Kept in a completely separate table
+-- with its own access rule -- students never get this data even by
+-- inspecting network requests, since the general "students can read
+-- exercises" policy only covers the exercises table, not this one.
+create table if not exists exercise_answers (
+  exercise_id uuid primary key references exercises(id),
+  answer_key text not null
+);
+
+alter table exercise_answers enable row level security;
+
+create policy "only instructor reads or writes answer keys"
+  on exercise_answers for all
+  using (auth.jwt() ->> 'email' = 'nshah3@drew.edu')
+  with check (auth.jwt() ->> 'email' = 'nshah3@drew.edu');
 
 -- Seed Module 1's exercises: original problems written in the spirit
 -- of a first chapter on computers and programming (print statements

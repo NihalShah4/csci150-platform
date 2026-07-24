@@ -34,6 +34,8 @@ function ExerciseCard({
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
+  const [needsRevision, setNeedsRevision] = useState(false);
+  const [instructorNote, setInstructorNote] = useState<string | null>(null);
   const [statusChecked, setStatusChecked] = useState(false);
   const [pasteBlockedMsg, setPasteBlockedMsg] = useState(false);
   const runCountRef = useRef(0);
@@ -45,7 +47,7 @@ function ExerciseCard({
     const supabase = supabaseBrowser();
     supabase
       .from('submissions')
-      .select('code, status')
+      .select('code, status, instructor_notes')
       .eq('student_id', studentId)
       .eq('exercise_id', exercise.id)
       .order('created_at', { ascending: false })
@@ -55,6 +57,9 @@ function ExerciseCard({
         if (data?.status === 'approved') {
           setLocked(true);
           setCode(data.code);
+        } else if (data?.status === 'needs_revision') {
+          setNeedsRevision(true);
+          setInstructorNote(data.instructor_notes ?? null);
         }
         setStatusChecked(true);
       });
@@ -109,6 +114,8 @@ function ExerciseCard({
       if (error.message.includes('already been approved')) setLocked(true);
     } else {
       setSubmitMsg('Submitted. Your instructor will review it.');
+      setNeedsRevision(false);
+      setInstructorNote(null);
     }
   }
 
@@ -128,6 +135,15 @@ function ExerciseCard({
         )}
       </div>
       <p style={{ color: 'var(--ink-soft)', marginTop: 0 }}>{exercise.prompt}</p>
+
+      {statusChecked && needsRevision && (
+        <div className="card locked" style={{ background: 'var(--danger-soft)', borderColor: 'var(--danger)' }}>
+          <strong style={{ color: 'var(--danger)' }}>Needs another try</strong>
+          <p style={{ margin: '6px 0 0', color: 'var(--ink)' }}>
+            {instructorNote || 'Your instructor asked you to revise this one, no comment was left.'}
+          </p>
+        </div>
+      )}
 
       <div className="term-window">
         <div className="term-header">
