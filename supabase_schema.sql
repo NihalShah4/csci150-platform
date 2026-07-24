@@ -221,26 +221,34 @@ $$;
 -- only -- no variables or input yet, those come in Module 2).
 insert into exercises (module_slug, sort_order, title, prompt, starter_code) values
 (
-  'intro-computers-programming', 1, 'Say hello',
-  'Write a program that uses one print() statement to display the message: Hello, world! I just wrote my first program.',
-  '# Use print() to display the message below\n'
+  'intro-computers-programming', 1, 'Escape artist',
+  'Write a single print() statement that outputs the exact line below, including both the double quotes and the apostrophe:\nShe said, "It''s already done!"\nThink about which quote characters Python will let you use, and where you need a backslash, before you start typing.',
+  '# Print the exact line above, quotes and all\n'
 ),
 (
-  'intro-computers-programming', 2, 'Introduce yourself',
-  'Using several separate print() statements (one per line), display your name, your major, and one fact about yourself. That is three print() calls total, each on its own line.',
-  '# Use three separate print() statements\n'
+  'intro-computers-programming', 2, 'Order of operations',
+  'Before writing any code, work out on paper what this expression equals: 4 + 3 * 2 - 6 / 2\nThen write one print() statement that prints the numeric result of that exact expression (do not just print the number you calculated by hand, print the expression itself and let Python evaluate it). Run it to check your prediction.',
+  '# Print the result of the expression: 4 + 3 * 2 - 6 / 2\n'
 ),
 (
-  'intro-computers-programming', 3, 'Draw a box',
-  'Using only print() statements, draw a small box made of asterisks (*) that is 4 rows tall and 4 characters wide, like this:\n****\n*  *\n*  *\n****',
-  '# Use print() statements to draw the box exactly as shown\n'
+  'intro-computers-programming', 3, 'Match the pattern',
+  'Using only print() statements, reproduce this exact triangle of asterisks, one row per print() call, four rows total:\n*\n**\n***\n****',
+  '# Print the four rows of the triangle above\n'
 ),
 (
-  'intro-computers-programming', 4, 'Spot the bug',
+  'intro-computers-programming', 4, 'Reorder the story',
+  'The four print() statements below are correct on their own, but they are in the wrong order, so right now they print a confusing, out-of-sequence message. Rearrange the lines (do not change their text) so the program prints a coherent four-line message that makes logical sense from start to finish.',
+  'print("Then I ran it and saw the output on screen.")\nprint("First, I opened my code editor.")\nprint("Finally, I fixed the bug and celebrated.")\nprint("Next, I typed my very first print statement.")\n'
+),
+(
+  'intro-computers-programming', 5, 'Spot the bug',
   'The program below is supposed to print two lines: "Loading Pynt..." and "Ready to code.", but it has a mistake in it. Fix it so both lines print correctly without any errors.',
   'print("Loading Pynt...")\nprin("Ready to code.")\n'
 )
-on conflict (module_slug, sort_order) do nothing;
+on conflict (module_slug, sort_order) do update set
+  title = excluded.title,
+  prompt = excluded.prompt,
+  starter_code = excluded.starter_code;
 
 
 -- You (the instructor) will read everything using the Supabase
