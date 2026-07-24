@@ -1,6 +1,7 @@
 import './globals.css';
 import NavBar from '../components/NavBar';
 import AppBackground from '../components/AppBackground';
+import InactivityTimer from '../components/InactivityTimer';
 
 export const metadata = {
   title: 'Pynt — learn Python by writing it',
@@ -12,6 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <AppBackground />
+        <InactivityTimer />
         <NavBar />
         {children}
       </body>
