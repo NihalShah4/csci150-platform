@@ -153,6 +153,18 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    const supabase = supabaseBrowser();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        window.location.href = '/modules';
+        return;
+      }
+      setCheckingSession(false);
+    });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -181,6 +193,10 @@ export default function Home() {
       if (error) setMessage(error.message);
       else window.location.href = '/modules';
     }
+  }
+
+  if (checkingSession) {
+    return <div className="container">Checking session...</div>;
   }
 
   return (
