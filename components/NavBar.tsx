@@ -27,7 +27,7 @@ export default function NavBar() {
     <div className="navbar">
       <div className="row">
         <div className="brand">
-          <span className="dot" />
+          <img src="/pynt-logo.png" alt="Pynt" style={{ width: 22, height: 22, borderRadius: 6 }} />
           Pynt
         </div>
         <div className="links">

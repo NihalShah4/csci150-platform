@@ -13,8 +13,8 @@ const SCRIPT = [
   { type: 'in', text: 'print("Hello, world.")' },
   { type: 'out', text: 'Hello, world.' },
   { type: 'in', text: 'name = "you"' },
-  { type: 'in', text: 'print(f"Welcome to CSCI 150, {name}.")' },
-  { type: 'out', text: 'Welcome to CSCI 150, you.' },
+  { type: 'in', text: 'print(f"Welcome to Pynt, {name}.")' },
+  { type: 'out', text: 'Welcome to Pynt, you.' },
 ];
 
 function TypingIntro() {

@@ -11,7 +11,7 @@ declare global {
 
 const STARTER_CODE = `# Try it: print a greeting using an input value
 name = input("What's your name? ")
-print("Hello, " + name + "! Welcome to CSCI 150.")
+print("Hello, " + name + "! Welcome to Pynt.")
 `;
 
 export default function ModulePage({ params }: { params: { slug: string } }) {
