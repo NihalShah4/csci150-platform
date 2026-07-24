@@ -23,7 +23,11 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
   const [checked, setChecked] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [pasteBlockedMsg, setPasteBlockedMsg] = useState(false);
   const pyodideRef = useRef<any>(null);
+  const runCountRef = useRef(0);
+  const pasteAttemptedRef = useRef(false);
+  const startTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
     const supabase = supabaseBrowser();
@@ -68,6 +72,7 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
   }, []);
 
   async function runCode() {
+    runCountRef.current += 1;
     setRunning(true);
     setOutput('');
     try {
@@ -106,6 +111,9 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
       module_slug: params.slug,
       code,
       status: 'pending',
+      run_count: runCountRef.current,
+      seconds_to_submit: Math.round((Date.now() - startTimeRef.current) / 1000),
+      paste_attempted: pasteAttemptedRef.current,
     });
     setSubmitting(false);
     if (error) {
@@ -163,10 +171,22 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
                 className="editor"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
+                onPaste={(e) => {
+                  if (locked) return;
+                  e.preventDefault();
+                  pasteAttemptedRef.current = true;
+                  setPasteBlockedMsg(true);
+                  setTimeout(() => setPasteBlockedMsg(false), 2500);
+                }}
                 spellCheck={false}
                 readOnly={locked}
                 style={locked ? { opacity: 0.75, cursor: 'default' } : undefined}
               />
+              {pasteBlockedMsg && (
+                <p style={{ color: 'var(--warn)', fontSize: 12.5, marginTop: 6 }}>
+                  Pasting is turned off here, type it out yourself so it actually sinks in.
+                </p>
+              )}
             </div>
           </div>
 

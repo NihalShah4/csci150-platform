@@ -10,6 +10,9 @@ type Submission = {
   module_slug: string;
   code: string;
   status: string;
+  run_count: number | null;
+  seconds_to_submit: number | null;
+  paste_attempted: boolean | null;
   created_at: string;
 };
 
@@ -111,6 +114,19 @@ export default function AdminPage() {
   const pending = submissions.filter((s) => s.status === 'pending');
   const reviewed = submissions.filter((s) => s.status !== 'pending');
 
+  const duplicateGroups = new Map<string, string[]>();
+  submissions.forEach((s) => {
+    const key = s.module_slug + '::' + s.code.trim().replace(/\s+/g, ' ');
+    const emails = duplicateGroups.get(key) ?? [];
+    if (!emails.includes(s.student_email)) emails.push(s.student_email);
+    duplicateGroups.set(key, emails);
+  });
+  function duplicatesFor(s: Submission): string[] {
+    const key = s.module_slug + '::' + s.code.trim().replace(/\s+/g, ' ');
+    const emails = duplicateGroups.get(key) ?? [];
+    return emails.filter((e) => e !== s.student_email);
+  }
+
   return (
     <div className="container">
       <div className="eyebrow">instructor</div>
@@ -194,49 +210,64 @@ export default function AdminPage() {
         </div>
       )}
 
-      {pending.map((s) => (
-        <div key={s.id} className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 14 }}>{s.module_slug}</strong>
-            <span className="badge">{s.status}</span>
-          </div>
-          <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>
-            {s.student_email} &middot; {new Date(s.created_at).toLocaleString()}
-          </p>
-          <div className="term-window">
-            <div className="term-header">
-              <span className="term-dot red" />
-              <span className="term-dot yellow" />
-              <span className="term-dot green" />
+      {pending.map((s) => {
+        const dupes = duplicatesFor(s);
+        return (
+          <div key={s.id} className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 14 }}>{s.module_slug}</strong>
+              <span className="badge">{s.status}</span>
             </div>
-            <div className="term-body">
-              <pre
-                style={{
-                  margin: 0,
-                  color: 'var(--term-ink)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 13,
-                  whiteSpace: 'pre-wrap',
-                }}
+            <p style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>
+              {s.student_email} &middot; {new Date(s.created_at).toLocaleString()}
+            </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              <span className="badge">{s.run_count ?? 0} run{s.run_count === 1 ? '' : 's'}</span>
+              <span className="badge">
+                {s.seconds_to_submit != null ? `${s.seconds_to_submit}s to submit` : 'time unknown'}
+              </span>
+              {s.paste_attempted && <span className="badge locked"># tried to paste</span>}
+              {dupes.length > 0 && (
+                <span className="badge danger">
+                  matches {dupes.join(', ')}
+                </span>
+              )}
+            </div>
+            <div className="term-window">
+              <div className="term-header">
+                <span className="term-dot red" />
+                <span className="term-dot yellow" />
+                <span className="term-dot green" />
+              </div>
+              <div className="term-body">
+                <pre
+                  style={{
+                    margin: 0,
+                    color: 'var(--term-ink)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 13,
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {s.code}
+                </pre>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button className="btn" disabled={busyId === s.id} onClick={() => setStatus(s.id, 'approved')}>
+                Approve
+              </button>
+              <button
+                className="btn danger"
+                disabled={busyId === s.id}
+                onClick={() => setStatus(s.id, 'needs_revision')}
               >
-                {s.code}
-              </pre>
+                Needs revision
+              </button>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button className="btn" disabled={busyId === s.id} onClick={() => setStatus(s.id, 'approved')}>
-              Approve
-            </button>
-            <button
-              className="btn danger"
-              disabled={busyId === s.id}
-              onClick={() => setStatus(s.id, 'needs_revision')}
-            >
-              Needs revision
-            </button>
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       {!loading && !loadError && pending.length === 0 && (
         <p style={{ color: 'var(--ink-soft)' }}>No pending submissions.</p>

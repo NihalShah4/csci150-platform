@@ -25,6 +25,9 @@ create table submissions (
   code text not null,
   status text default 'pending',
   instructor_notes text,
+  run_count integer default 0,
+  seconds_to_submit integer,
+  paste_attempted boolean default false,
   created_at timestamptz default now()
 );
 
@@ -164,6 +167,9 @@ returns table (
   module_slug text,
   code text,
   status text,
+  run_count integer,
+  seconds_to_submit integer,
+  paste_attempted boolean,
   created_at timestamptz
 )
 language plpgsql
@@ -176,7 +182,8 @@ begin
   end if;
 
   return query
-    select s.id, s.student_id, u.email::text, s.module_slug, s.code, s.status, s.created_at
+    select s.id, s.student_id, u.email::text, s.module_slug, s.code, s.status,
+           s.run_count, s.seconds_to_submit, s.paste_attempted, s.created_at
     from submissions s
     join auth.users u on u.id = s.student_id
     order by s.created_at desc;
