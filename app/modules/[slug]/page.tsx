@@ -114,10 +114,6 @@ function ExerciseCard({
       setSubmitMsg('You must be signed in to submit.');
       return;
     }
-    if (!approachNote.trim()) {
-      setSubmitMsg('Add a sentence or two about your approach before submitting.');
-      return;
-    }
     setSubmitting(true);
     setSubmitMsg(null);
     const supabase = supabaseBrowser();
@@ -126,7 +122,7 @@ function ExerciseCard({
       module_slug: moduleSlug,
       exercise_id: exercise.id,
       code,
-      approach_note: approachNote.trim(),
+      approach_note: approachNote.trim() || null,
       status: 'pending',
       run_count: runCountRef.current,
       seconds_to_submit: Math.round((Date.now() - startTimeRef.current) / 1000),
@@ -250,7 +246,7 @@ function ExerciseCard({
       {!locked && !exercise.is_bonus && (
         <div style={{ marginBottom: 12 }}>
           <label style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>
-            Before you submit: what was your approach? (required)
+            Before you submit: what was your approach? (optional)
           </label>
           <textarea
             className="editor"
