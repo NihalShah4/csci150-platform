@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabaseBrowser, isAllowedEmail, ALLOWED_EMAIL_DOMAIN } from '../lib/supabaseClient';
+import LoadingFact from '../components/LoadingFact';
 
 declare global {
   interface Window {
@@ -134,6 +135,7 @@ function LivePlayground() {
         <button className="btn" onClick={run} disabled={running}>
           {running ? 'Running...' : ready ? 'Run this code' : 'Loading Python...'}
         </button>
+        {!ready && <div style={{ marginTop: 8 }}><LoadingFact /></div>}
       </div>
       {output && (
         <div className="term-body" style={{ borderTop: '1px solid var(--term-border)' }}>

@@ -28,6 +28,7 @@ create table submissions (
   run_count integer default 0,
   seconds_to_submit integer,
   paste_attempted boolean default false,
+  approach_note text,
   created_at timestamptz default now()
 );
 
@@ -323,6 +324,331 @@ begin
            s.run_count, s.seconds_to_submit, s.paste_attempted, s.created_at
     from submissions s
     join auth.users u on u.id = s.student_id
+    order by s.created_at desc;
+end;
+$$;
+
+-- ============================================================
+-- Interactivity additions: bonus exercises, tiered hints,
+-- reflection notes, class-wide (anonymous) completion stats.
+-- ============================================================
+
+alter table exercises add column if not exists is_bonus boolean default false;
+
+-- Tiered hints: students reveal these one level at a time in the UI.
+-- Kept separate from exercises so the reveal logic lives entirely
+-- client-side without needing to touch the exercise row itself.
+create table if not exists exercise_hints (
+  id uuid primary key default gen_random_uuid(),
+  exercise_id uuid references exercises(id) not null,
+  hint_level int not null,
+  hint_text text not null,
+  unique (exercise_id, hint_level)
+);
+
+alter table exercise_hints enable row level security;
+
+create policy "anyone signed in can read hints"
+  on exercise_hints for select
+  using (auth.role() = 'authenticated');
+
+create policy "only instructor manages hints"
+  on exercise_hints for all
+  using (auth.jwt() ->> 'email' = 'nshah3@drew.edu')
+  with check (auth.jwt() ->> 'email' = 'nshah3@drew.edu');
+
+-- Class-wide completion percentage per module, with zero per-student
+-- data exposed. Safe for any signed-in student to call directly.
+create or replace function get_module_completion_stats()
+returns table (
+  module_slug text,
+  total_students bigint,
+  completed_students bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.role() <> 'authenticated' then
+    raise exception 'not authorized';
+  end if;
+
+  return query
+    with roster_count as (
+      select count(*) as n from allowed_students
+    ),
+    ex_counts as (
+      select module_slug, count(*) as total_ex
+      from exercises
+      where is_bonus = false
+      group by module_slug
+    ),
+    approved as (
+      select s.student_id, e.module_slug, count(distinct e.id) as approved_ex
+      from submissions s
+      join exercises e on e.id = s.exercise_id
+      where s.status = 'approved' and e.is_bonus = false
+      group by s.student_id, e.module_slug
+    )
+    select
+      ec.module_slug,
+      (select n from roster_count) as total_students,
+      count(*) filter (where a.approved_ex = ec.total_ex) as completed_students
+    from ex_counts ec
+    left join approved a on a.module_slug = ec.module_slug
+    group by ec.module_slug, ec.total_ex;
+end;
+$$;
+
+-- Module 1 hints (two tiers per exercise: a nudge, then a bigger nudge).
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Try using both a double-quoted string and thinking about where the apostrophe sits inside it.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 1
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'If you wrap the whole thing in double quotes, the apostrophe inside "It''s" is just a regular character, no escaping needed at all.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 1
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Remember multiplication and division happen before addition and subtraction, work left to right within each level.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 2
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, '3 * 2 = 6 first, then 6 / 2 = 3. So it becomes 4 + 6 - 3.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 2
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Parentheses run first, so figure out (2 + 3) and (4 - 1) before anything else.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 3
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'That gives you 5 * 3 ** 2. Exponents happen before multiplication, so 3 ** 2 = 9 first.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 3
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'You need exactly four print() statements, one per row of the triangle.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 4
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'Each row just has one more asterisk than the row before it: 1, 2, 3, 4.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 4
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Same idea as the previous exercise, but count down instead of up.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 5
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'Row one has four stars, row two has three, and so on down to one star.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 5
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Read all four lines first and figure out the natural beginning, middle, and end of the story before touching any code.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 6
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'Look for words like "First," "Then," "Next," and "Finally," they are telling you the order.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 6
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Read the function name being called on the second line very carefully, letter by letter.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 7
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'It says "prin" instead of "print", Python does not know what "prin" means.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 7
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Look closely at the quote marks used at the very start and very end of the string.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 8
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'It starts with a single quote but the apostrophe in "Don''t" closes that quote early. Try wrapping the whole thing in double quotes instead.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 8
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'You only need ONE print() statement here, using two different escape sequences inside it.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 9
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, '\t inserts a tab, \n starts a new line. Put them right inside your string literal.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 9
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'print() automatically puts something between the things you give it, you do not have to add it yourself.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 10
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'print("coffee", "break") already puts a single space between the two words by default.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 10
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'print() has a keyword argument called sep that controls what goes between values.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 11
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'print("red", "green", "blue", sep=" - ") is the shape you are looking for.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 11
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'print() has a keyword argument called end, which normally defaults to a newline character.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 12
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'Set end=" " on the first print() call so it does not jump to a new line before the second one runs.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 12
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'The + operator glues string literals together into one longer string.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 13
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'Something like "Py" + " + " + "thon" + " = " + "Python" builds the line piece by piece.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 13
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'The * operator works on strings too, not just numbers.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 14
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, '"ha" * 6 repeats the string six times in a row automatically.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 14
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Count the exact number of spaces in the target output before writing your print() calls.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 15
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'Every character, including blank spaces, needs to appear exactly where shown, this is really just careful counting.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 15
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'Count the opening and closing parentheses, are they balanced?'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 16
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'There is one opening parenthesis but no closing one at the end, add a )  right after the closing quote.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 16
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'A string literal needs a matching quote mark at both the start and the end.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 17
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, 'The string is missing its closing double quote, add one right before the closing parenthesis.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 17
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, '% gives you the remainder after division, not the quotient.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 18
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, '17 divided by 5 is 3 with 2 left over, so 17 % 5 is that leftover amount.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 18
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'In Python 3, the single / operator always gives you a decimal result, even if it divides evenly.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 19
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, '7 / 2 is 3.5, not 3, that is what makes it different from // (integer division).'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 19
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 1, 'You can use len() to find out how many characters are in the name string.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 20
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+insert into exercise_hints (exercise_id, hint_level, hint_text)
+select id, 2, '"-" * len("Jordan Lee") builds a dash for every character in the name automatically.'
+from exercises where module_slug = 'intro-computers-programming' and sort_order = 20
+on conflict (exercise_id, hint_level) do update set hint_text = excluded.hint_text;
+
+-- One bonus, ungraded, purely-for-fun challenge per module.
+insert into exercises (module_slug, sort_order, title, prompt, starter_code, is_bonus) values
+('intro-computers-programming', 100, 'Bonus: ASCII smiley',
+ 'Just for fun, no grading here. Using only print() statements, draw a small smiley face out of characters, however you want it to look. There is no single right answer.',
+ '# Have fun with this one, draw a smiley however you like\n', true),
+('input-processing-output', 100, 'Bonus: Mad Libs',
+ 'Just for fun. Ask the user for a noun, a verb, and an adjective using input(), then print a silly sentence using all three.',
+ '# Read three words, then build a silly sentence\n', true),
+('decision-structures-boolean', 100, 'Bonus: Personality quiz',
+ 'Just for fun. Ask the user two yes/no questions with input(), then use conditionals to print a lighthearted "personality result" based on their answers.',
+ '# Ask two questions, then print a fun result based on the answers\n', true),
+('repetition-structures', 100, 'Bonus: ASCII spiral or staircase',
+ 'Just for fun, no grading. Use nested loops to draw any interesting shape or pattern you like out of characters, get creative with it.',
+ '# Draw any pattern you like using loops\n', true),
+('functions', 100, 'Bonus: Mini calculator',
+ 'Just for fun. Write functions for add, subtract, multiply, and divide, then let the user pick an operation and two numbers, printing the result.',
+ '# Build a tiny calculator using your own functions\n', true),
+('files-exceptions', 100, 'Bonus: Diary entry',
+ 'Just for fun. Ask the user to type a short diary entry with input(), write it to a file with today''s "entry" appended, then read the whole file back and print it.',
+ '# Write a diary-style entry to a file, then read it back\n', true),
+('lists-tuples', 100, 'Bonus: Shuffle a playlist',
+ 'Just for fun. Given a list of five song titles, write code that picks one at random each time it is run (look up Python''s random module) and prints "Now playing: ...".',
+ 'songs = ["Song A", "Song B", "Song C", "Song D", "Song E"]\n# Pick and print one at random\n', true),
+('more-about-strings', 100, 'Bonus: Pig Latin',
+ 'Just for fun. Given a single word, write code that converts it to Pig Latin (move the first letter to the end and add "ay"), print the result.',
+ 'word = "python"\n# Convert word to Pig Latin\n', true),
+('dictionaries-sets', 100, 'Bonus: Build your own contact book',
+ 'Just for fun. Build a dictionary representing a few contacts (name to phone number), then let the user look up a name and print the number, or a friendly message if it is not found.',
+ '# Build a small contact dictionary and let the user search it\n', true)
+on conflict (module_slug, sort_order) do update set
+  title = excluded.title, prompt = excluded.prompt, starter_code = excluded.starter_code, is_bonus = excluded.is_bonus;
+
+-- Update RPC once more to also surface the student's approach note.
+drop function if exists get_all_submissions();
+create or replace function get_all_submissions()
+returns table (
+  id uuid,
+  student_id uuid,
+  student_email text,
+  module_slug text,
+  exercise_id uuid,
+  exercise_title text,
+  code text,
+  status text,
+  instructor_notes text,
+  approach_note text,
+  run_count integer,
+  seconds_to_submit integer,
+  paste_attempted boolean,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (auth.jwt() ->> 'email') is distinct from 'nshah3@drew.edu' then
+    raise exception 'not authorized';
+  end if;
+
+  return query
+    select s.id, s.student_id, u.email::text, s.module_slug, s.exercise_id, e.title,
+           s.code, s.status, s.instructor_notes, s.approach_note,
+           s.run_count, s.seconds_to_submit, s.paste_attempted, s.created_at
+    from submissions s
+    join auth.users u on u.id = s.student_id
+    left join exercises e on e.id = s.exercise_id
     order by s.created_at desc;
 end;
 $$;

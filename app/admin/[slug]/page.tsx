@@ -18,6 +18,7 @@ type Submission = {
   code: string;
   status: string;
   instructor_notes: string | null;
+  approach_note: string | null;
   run_count: number | null;
   seconds_to_submit: number | null;
   paste_attempted: boolean | null;
@@ -41,8 +42,9 @@ export default function AdminModulePage({ params }: { params: { slug: string } }
 
     const { data: exData } = await supabase
       .from('exercises')
-      .select('id, sort_order, title, prompt')
+      .select('id, sort_order, title, prompt, is_bonus')
       .eq('module_slug', params.slug)
+      .eq('is_bonus', false)
       .order('sort_order', { ascending: true });
     setExercises((exData as Exercise[]) ?? []);
 
@@ -203,6 +205,11 @@ export default function AdminModulePage({ params }: { params: { slug: string } }
                       </pre>
                     </div>
                   </div>
+                  {s.approach_note && (
+                    <p style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 6, fontStyle: 'italic' }}>
+                      "{s.approach_note}"
+                    </p>
+                  )}
 
                   {s.status === 'pending' && (
                     <div style={{ marginTop: 8 }}>

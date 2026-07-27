@@ -32,6 +32,7 @@ export default function NavBar() {
         </div>
         <div className="links">
           <a className="navlink" href="/modules">modules/</a>
+          <a className="navlink" href="/playground">playground/</a>
           {isAdminEmail(email) && <a className="navlink" href="/admin">admin/</a>}
         </div>
       </div>

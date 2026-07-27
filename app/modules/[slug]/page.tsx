@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '../../../lib/supabaseClient';
+import LoadingFact from '../../../components/LoadingFact';
 
 declare global {
   interface Window {
@@ -15,16 +16,21 @@ type Exercise = {
   title: string;
   prompt: string;
   starter_code: string;
+  is_bonus: boolean;
 };
+
+type Hint = { hint_level: number; hint_text: string };
 
 function ExerciseCard({
   exercise,
   pyodideRef,
+  pyodideReady,
   studentId,
   moduleSlug,
 }: {
   exercise: Exercise;
   pyodideRef: React.MutableRefObject<any>;
+  pyodideReady: boolean;
   studentId: string | null;
   moduleSlug: string;
 }) {
@@ -38,13 +44,26 @@ function ExerciseCard({
   const [instructorNote, setInstructorNote] = useState<string | null>(null);
   const [statusChecked, setStatusChecked] = useState(false);
   const [pasteBlockedMsg, setPasteBlockedMsg] = useState(false);
+  const [approachNote, setApproachNote] = useState('');
+  const [hints, setHints] = useState<Hint[]>([]);
+  const [revealedLevel, setRevealedLevel] = useState(0);
   const runCountRef = useRef(0);
   const pasteAttemptedRef = useRef(false);
   const startTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    if (!studentId) return;
     const supabase = supabaseBrowser();
+    supabase
+      .from('exercise_hints')
+      .select('hint_level, hint_text')
+      .eq('exercise_id', exercise.id)
+      .order('hint_level', { ascending: true })
+      .then(({ data }) => setHints((data as Hint[]) ?? []));
+
+    if (!studentId || exercise.is_bonus) {
+      setStatusChecked(true);
+      return;
+    }
     supabase
       .from('submissions')
       .select('code, status, instructor_notes')
@@ -63,7 +82,7 @@ function ExerciseCard({
         }
         setStatusChecked(true);
       });
-  }, [studentId, exercise.id]);
+  }, [studentId, exercise.id, exercise.is_bonus]);
 
   async function runCode() {
     runCountRef.current += 1;
@@ -95,6 +114,10 @@ function ExerciseCard({
       setSubmitMsg('You must be signed in to submit.');
       return;
     }
+    if (!approachNote.trim()) {
+      setSubmitMsg('Add a sentence or two about your approach before submitting.');
+      return;
+    }
     setSubmitting(true);
     setSubmitMsg(null);
     const supabase = supabaseBrowser();
@@ -103,6 +126,7 @@ function ExerciseCard({
       module_slug: moduleSlug,
       exercise_id: exercise.id,
       code,
+      approach_note: approachNote.trim(),
       status: 'pending',
       run_count: runCountRef.current,
       seconds_to_submit: Math.round((Date.now() - startTimeRef.current) / 1000),
@@ -116,6 +140,7 @@ function ExerciseCard({
       setSubmitMsg('Submitted. Your instructor will review it.');
       setNeedsRevision(false);
       setInstructorNote(null);
+      setApproachNote('');
     }
   }
 
@@ -124,10 +149,11 @@ function ExerciseCard({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
         <div>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-soft)' }}>
-            exercise {exercise.sort_order}
+            {exercise.is_bonus ? 'bonus' : `exercise ${exercise.sort_order}`}
           </div>
           <h3 style={{ margin: '2px 0 8px' }}>{exercise.title}</h3>
         </div>
+        {exercise.is_bonus && <span className="badge locked"># ungraded, just for fun</span>}
         {statusChecked && locked && (
           <span className="status-chip complete">
             <span className="status-dot" /> approved
@@ -176,11 +202,17 @@ function ExerciseCard({
         </p>
       )}
 
-      <div style={{ display: 'flex', gap: 10, margin: '12px 0' }}>
+      {!pyodideReady && (
+        <div style={{ marginTop: 8 }}>
+          <LoadingFact />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, margin: '12px 0', flexWrap: 'wrap' }}>
         <button className="btn" onClick={runCode} disabled={running}>
           {running ? 'Running...' : 'Run'}
         </button>
-        {!locked && (
+        {!locked && !exercise.is_bonus && (
           <button
             className="btn"
             onClick={submitWork}
@@ -190,7 +222,51 @@ function ExerciseCard({
             {submitting ? 'Submitting...' : 'Submit'}
           </button>
         )}
+        {hints.length > 0 && !locked && (
+          <button
+            className="btn ghost"
+            onClick={() => setRevealedLevel((l) => Math.min(l + 1, hints.length))}
+            disabled={revealedLevel >= hints.length}
+          >
+            {revealedLevel === 0
+              ? 'Give me a hint'
+              : revealedLevel >= hints.length
+              ? 'No more hints'
+              : 'Another hint'}
+          </button>
+        )}
       </div>
+
+      {revealedLevel > 0 && (
+        <div className="card locked" style={{ marginBottom: 12 }}>
+          {hints.slice(0, revealedLevel).map((h) => (
+            <p key={h.hint_level} style={{ margin: '4px 0', color: 'var(--ink)' }}>
+              <strong>Hint {h.hint_level}:</strong> {h.hint_text}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {!locked && !exercise.is_bonus && (
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontFamily: 'var(--font-mono)' }}>
+            Before you submit: what was your approach? (required)
+          </label>
+          <textarea
+            className="editor"
+            value={approachNote}
+            onChange={(e) => setApproachNote(e.target.value)}
+            placeholder="One or two sentences on how you solved it..."
+            style={{
+              minHeight: 60,
+              color: 'var(--ink)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              marginTop: 4,
+            }}
+          />
+        </div>
+      )}
 
       {output && (
         <div className="term-window">
@@ -222,6 +298,7 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
   const [allowed, setAllowed] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [studentId, setStudentId] = useState<string | null>(null);
+  const [pyodideReady, setPyodideReady] = useState(false);
   const pyodideRef = useRef<any>(null);
 
   useEffect(() => {
@@ -255,9 +332,13 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
     script.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js';
     script.onload = async () => {
       pyodideRef.current = await window.loadPyodide();
+      setPyodideReady(true);
     };
     document.body.appendChild(script);
   }, []);
+
+  const coreExercises = exercises.filter((e) => !e.is_bonus);
+  const bonusExercises = exercises.filter((e) => e.is_bonus);
 
   return (
     <div className="container">
@@ -284,15 +365,34 @@ export default function ModulePage({ params }: { params: { slug: string } }) {
 
       {checked &&
         allowed &&
-        exercises.map((ex) => (
+        coreExercises.map((ex) => (
           <ExerciseCard
             key={ex.id}
             exercise={ex}
             pyodideRef={pyodideRef}
+            pyodideReady={pyodideReady}
             studentId={studentId}
             moduleSlug={params.slug}
           />
         ))}
+
+      {checked && allowed && bonusExercises.length > 0 && (
+        <>
+          <div className="eyebrow" style={{ marginTop: 8 }}>
+            just for fun
+          </div>
+          {bonusExercises.map((ex) => (
+            <ExerciseCard
+              key={ex.id}
+              exercise={ex}
+              pyodideRef={pyodideRef}
+              pyodideReady={pyodideReady}
+              studentId={studentId}
+              moduleSlug={params.slug}
+            />
+          ))}
+        </>
+      )}
     </div>
   );
 }
